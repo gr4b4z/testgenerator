@@ -17,15 +17,14 @@ npm test
 ```
 Nie trzeba niczego instalować poza Node.js (do testów) i Pythonem (do lokalnego serwera; jest na macOS).
 
-## Publikacja na GitHub Pages (jednorazowo)
-1. Wyślij kod na GitHuba (`git push`).
-2. Na stronie repozytorium: **Settings → Pages**.
-3. W **Build and deployment → Source** wybierz **Deploy from a branch**, gałąź **main**, folder **/ (root)**, i kliknij **Save**.
-4. Po 1–2 minutach serwis będzie pod adresem `https://<nazwa-użytkownika>.github.io/<nazwa-repozytorium>/`.
+## Publikacja
+Serwis: **https://testmaniak.3asg.eu/**
 
-Każdy kolejny `git push` na `main` publikuje nową wersję automatycznie. Testy uruchamiają się przy każdym pushu (zakładka **Actions**).
+Każdy `git push` na `main` uruchamia w GitHub Actions testy, a gdy przejdą, publikuje stronę na GitHub Pages
+(plik `.github/workflows/publikacja.yml`, postęp w zakładce **Actions**). Gdy testy nie przejdą, na stronie zostaje poprzednia wersja.
 
-Uwaga: GitHub Pages w darmowym planie wymaga **publicznego** repozytorium.
+Ustawienia w **Settings → Pages**: Source = **GitHub Actions**, domena `testmaniak.3asg.eu`, zaznaczone **Enforce HTTPS**
+(bez HTTPS nie działa tryb offline i instalacja na telefonie).
 
 ## Dodawanie quizów
 Zasady i struktura są w [CLAUDE.md](CLAUDE.md). W skrócie: nowy folder `<przedmiot>/<quiz>/`, wpis w `katalog.js`, testy w `tests/`.
