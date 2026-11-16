@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quizy szkolne</title>
+<meta name="description" content="Ćwiczenia z różnych przedmiotów z rozwiązaniami krok po kroku. Działa w przeglądarce i bez internetu.">
+<meta name="theme-color" content="#2f52d6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="wspolne/ikona.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="wspolne/ikona-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="wspolne/styl.css">
+<style>
+.subject{display:flex;flex-direction:column;gap:12px}
+.subject h2{font-size:1.3rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.card{display:flex;gap:16px;align-items:flex-start;padding:18px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink);text-decoration:none;transition:border-color .15s,transform .1s}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.card .sign{flex:0 0 auto;width:56px;height:56px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:1.7rem;line-height:1}
+.card .body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.card .t{font-family:var(--f-display);font-weight:800;font-size:1.25rem;line-height:1.15}
+.card .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.best{font-size:.8rem;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--marker);color:var(--marker-ink)}
+.foot{font-size:.88rem}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="hero">
+    <h1>Quizy szkolne</h1>
+    <p class="muted">Ćwiczenia, które za każdym razem losują nowe zadania i pokazują rozwiązanie krok po kroku. Wyniki zostają tylko na tym urządzeniu.</p>
+  </header>
+  <div id="list" class="page" style="padding:0;gap:28px"></div>
+  <p class="muted foot">Na telefonie możesz dodać tę stronę do ekranu głównego. Otwarte wcześniej quizy działają wtedy także bez internetu.</p>
+</main>
+<script src="katalog.js"></script>
+<script>
+(function(){
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function best(key){
+    if(!key)return null;
+    try{const o=JSON.parse(localStorage.getItem(key)||'{}');const v=Object.values(o.best||{});return v.length?Math.max(...v):null}catch(e){return null}
+  }
+  const groups=new Map();
+  for(const q of window.KATALOG||[]){if(!groups.has(q.przedmiot))groups.set(q.przedmiot,[]);groups.get(q.przedmiot).push(q)}
+  document.getElementById('list').innerHTML=[...groups].map(([name,qs])=>`
+    <section class="subject"><h2>${esc(name)}</h2><div class="cards">
+      ${qs.map(q=>{const b=best(q.pamiec);return `<a class="card" href="${esc(q.sciezka)}">
+        <span class="sign" aria-hidden="true">${esc(q.znak||'?')}</span>
+        <span class="body"><span class="t">${esc(q.tytul)}</span><span class="muted">${esc(q.opis)}</span>
+        <span class="meta"><span class="tag">${esc(q.klasy)}</span>${b!=null?`<span class="best">Najlepszy wynik: ${b}%</span>`:''}</span></span>
+      </a>`}).join('')}
+    </div></section>`).join('')||'<p class="muted">Brak quizów.</p>';
+})();
+</script>
+<script src="wspolne/pwa.js" defer></script>
+</body>
+</html>

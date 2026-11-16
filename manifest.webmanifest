@@ -1,0 +1,17 @@
+{
+  "name": "Quizy – ćwiczenia szkolne",
+  "short_name": "Quizy",
+  "description": "Ćwiczenia z różnych przedmiotów z rozwiązaniami krok po kroku.",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f9fd",
+  "theme_color": "#2f52d6",
+  "icons": [
+    { "src": "wspolne/ikona-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "wspolne/ikona-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "wspolne/ikona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "wspolne/ikona.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ułamkowy Trening</title>
+<meta name="description" content="Quiz z ułamków zwykłych i dziesiętnych: cztery działania, trzy poziomy, rozwiązania krok po kroku.">
+<meta name="theme-color" content="#2f52d6">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" href="../../wspolne/ikona.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../../wspolne/ikona-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="../../wspolne/styl.css">
+<style>
+/* fractions */
+.fr{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;line-height:1.05;margin:0 .12em;font-variant-numeric:tabular-nums}
+.fr>.n{padding:0 .18em .06em;border-bottom:.07em solid currentColor;min-width:1em;text-align:center}
+.fr>.d{padding:.06em .18em 0;text-align:center}
+.mx{display:inline-flex;align-items:center;gap:.02em;vertical-align:middle}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.steps .fr{font-size:.92em}
+
+.expr{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,8vw,3rem);display:flex;align-items:center;justify-content:center;gap:.28em;flex-wrap:wrap;padding:14px 0 4px;text-align:center}
+.expr .op{color:var(--accent)}
+.expr .q{display:inline-grid;place-items:center;min-width:1.3em;height:1.3em;border:3px dashed var(--line);border-radius:12px;color:var(--muted);font-size:.8em}
+
+.ans{display:flex;flex-direction:column;align-items:center;gap:12px}
+.ans-frac{display:flex;align-items:center;gap:10px}
+.ans input{font-family:var(--f-display);font-weight:700;font-size:1.8rem;text-align:center;border:2px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);padding:4px 6px}
+.ans input.whole{width:3.2em;height:3.4em}
+.stack{display:flex;flex-direction:column;align-items:center;gap:6px}
+.stack input{width:3.6em;height:1.7em}
+.stack .bar{width:100%;height:3px;background:var(--ink);border-radius:2px}
+.ans input.dec{width:min(9em,100%);height:1.8em}
+.ans input:disabled{opacity:.75}
+.hintline{font-size:.88rem;color:var(--muted);text-align:center}
+.mode{display:inline-flex;border:2px solid var(--line);border-radius:999px;padding:3px;gap:3px;background:var(--paper)}
+.mode button{font:inherit;font-weight:800;font-size:.88rem;border:0;border-radius:999px;padding:6px 14px;background:transparent;color:var(--muted);cursor:pointer}
+.mode button[aria-pressed=true]{background:var(--accent);color:var(--card)}
+pre.col{font-family:var(--f-mono);font-size:1rem;line-height:1.35;margin:6px 0 0;padding:8px 12px;background:var(--card);border-radius:10px;display:inline-block;overflow-x:auto;max-width:100%}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="logika.js"></script>
+<script>
+"use strict";
+/* ---------- pamięć ---------- */
+const KEY='ulamkowy-trening-v1';
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}}}
+function save(o){try{localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+const BADGES=[
+  {id:'s5',ic:'🔥',t:'Rozgrzewka',d:'5 dobrych z rzędu'},
+  {id:'s10',ic:'🚀',t:'10 z rzędu',d:'10 dobrych bez pomyłki'},
+  {id:'perf',ic:'🏆',t:'Perfekcja',d:'100% w quizie'},
+  {id:'solo',ic:'🧠',t:'Samodzielnie',d:'80%+ bez podpowiedzi'},
+  {id:'m+',ic:'➕',t:'Mistrz dodawania',d:'5 dobrych w quizie'},
+  {id:'m-',ic:'➖',t:'Mistrz odejmowania',d:'5 dobrych w quizie'},
+  {id:'m·',ic:'✖️',t:'Mistrz mnożenia',d:'5 dobrych w quizie'},
+  {id:'m:',ic:'➗',t:'Mistrz dzielenia',d:'5 dobrych w quizie'},
+  {id:'hard',ic:'⭐',t:'Twarda sztuka',d:'80%+ na poziomie trudnym'},
+];
+
+/* ---------- stan ---------- */
+let S={screen:'start',name:'',cfg:{cats:['frac','dec'],ops:['+','-','·',':'],level:1,count:10},quiz:null,lastNew:[]};
+const app=document.getElementById('app');
+const $=s=>app.querySelector(s);
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=R(0,i);[a[i],a[j]]=[a[j],a[i]]}return a}
+function buildQuiz(cfg){
+  const qs=[],seen=new Set();
+  const ops=shuffle([...cfg.ops]),cats=shuffle([...cfg.cats]);
+  for(let i=0;i<cfg.count;i++){
+    const op=ops[i%ops.length],cat=cats[Math.floor(i/ops.length)%cats.length];
+    let q,key,t=0;
+    do{q=cat==='frac'?genFrac(op,cfg.level):cat==='dec'?genDec(op,cfg.level):genMix(op,cfg.level);
+      key=[q.cat,q.op,q.a.v.n,q.a.v.d,q.b.v.n,q.b.v.d].join('|')}while(seen.has(key)&&++t<30);
+    seen.add(key);q.steps=stepsFor(q);q.hint=hintFor(q);qs.push(q);
+  }
+  return shuffle(qs);
+}
+function startQuiz(qs,retry){
+  S.quiz={qs,i:0,points:0,streak:0,bestStreak:0,results:[],phase:'answer',hintShown:false,mode:'dec',retry:!!retry,level:S.cfg.level};
+  S.screen='quiz';render();
+}
+
+/* ---------- ekran startowy ---------- */
+function chip(type,name,value,label,checked,extra=''){
+  return `<label class="chip"><input type="${type}" name="${name}" value="${value}" id="${name}-${value}" ${checked?'checked':''}><span>${label}${extra}</span></label>`}
+function badgeGrid(have,fresh=[],only=null){
+  return `<div class="badges">${BADGES.filter(b=>!only||only.includes(b.id)).map(b=>`<div class="badge ${have.includes(b.id)?'on':''} ${fresh.includes(b.id)?'new':''}"><span class="ic" aria-hidden="true">${b.ic}</span><span>${b.t}<small>${b.d}</small></span></div>`).join('')}</div>`}
+function renderStart(){
+  const st=load(),c=S.cfg;
+  if(!S.name&&st.name)S.name=st.name;
+  const best=st.best||{};
+  const bestTxt=[1,2,3].filter(l=>best[l]!=null).map(l=>`${LEVELNAME[l]}: <b>${best[l]}%</b>`).join(' · ');
+  app.innerHTML=`
+  <header class="hero">
+    <a class="crumb" href="../../">← Wszystkie quizy</a>
+    <h1>Ułamkowy Trening</h1>
+    <p class="muted">Dodawanie, odejmowanie, mnożenie i dzielenie ułamków zwykłych i dziesiętnych. Po każdej pomyłce zobaczysz rozwiązanie krok po kroku.</p>
+    <div class="demo" aria-hidden="true">${frH(3,4)}<span>+</span><span>0,25</span><span>=</span><span>1</span></div>
+  </header>
+  <form id="startForm" class="panel" novalidate>
+    <label class="field"><span class="lbl">Twoje imię</span><input id="nm" type="text" value="${esc(S.name)}" maxlength="20" autocomplete="off" placeholder="np. Zosia"></label>
+    <fieldset><legend>Rodzaj ułamków</legend><div class="chips">
+      ${chip('checkbox','cat','frac','Zwykłe',c.cats.includes('frac'),` <span class="sym">${frH(1,2)}</span>`)}
+      ${chip('checkbox','cat','dec','Dziesiętne',c.cats.includes('dec'),' <span class="sym">0,5</span>')}
+      ${chip('checkbox','cat','mix','Mieszane',c.cats.includes('mix'),` <span class="sym">${frH(1,2)}+0,5</span>`)}
+    </div></fieldset>
+    <fieldset><legend>Działania</legend><div class="chips">
+      ${['+','-','·',':'].map(o=>chip('checkbox','op',o,OPNAME[o],c.ops.includes(o),` <span class="sym">${OPSHOW[o]}</span>`)).join('')}
+    </div></fieldset>
+    <fieldset><legend>Poziom</legend><div class="levels">
+      ${chip('radio','lvl','1','<span><i class="dot" style="background:var(--ok)"></i>Łatwy</span>',c.level===1,'<small>Wspólne mianowniki, małe liczby, jedna cyfra po przecinku</small>')}
+      ${chip('radio','lvl','2','<span><i class="dot" style="background:var(--marker)"></i>Średni</span>',c.level===2,'<small>Różne mianowniki, liczby mieszane, dwie cyfry po przecinku</small>')}
+      ${chip('radio','lvl','3','<span><i class="dot" style="background:var(--bad)"></i>Trudny</span>',c.level===3,'<small>Większe liczby, wynik trzeba skrócić i wyłączyć całości</small>')}
+    </div></fieldset>
+    <fieldset><legend>Liczba pytań</legend><div class="chips">
+      ${[10,15,20].map(n=>chip('radio','cnt',n,String(n),c.count===n)).join('')}
+    </div></fieldset>
+    <p id="startErr" class="err" hidden></p>
+    <button class="btn primary big" type="submit">Zaczynamy!</button>
+  </form>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between"><h3>Twoje odznaki</h3>${bestTxt?`<span class="muted">Najlepsze wyniki: ${bestTxt}</span>`:''}</div>
+    ${badgeGrid(st.badges||[])}
+  </section>`;
+  $('#startForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const val=n=>[...app.querySelectorAll(`input[name="${n}"]:checked`)].map(i=>i.value);
+    const cats=val('cat'),ops=val('op'),err=$('#startErr');
+    if(!cats.length||!ops.length){err.textContent=!cats.length?'Wybierz przynajmniej jeden rodzaj ułamków.':'Wybierz przynajmniej jedno działanie.';err.hidden=false;return}
+    S.name=$('#nm').value.trim().slice(0,20);
+    S.cfg={cats,ops,level:+val('lvl')[0],count:+val('cnt')[0]};
+    const st2=load();st2.name=S.name;save(st2);
+    startQuiz(buildQuiz(S.cfg));
+  });
+}
+
+/* ---------- quiz ---------- */
+function answerArea(q,Z,disabled){
+  const mode=q.cat==='frac'?'frac':q.cat==='dec'?'dec':Z.mode;
+  const dis=disabled?'disabled':'';
+  let toggle='';
+  if(q.cat==='mix')toggle=`<div class="mode" role="group" aria-label="Postać odpowiedzi">
+    <button type="button" data-mode="dec" aria-pressed="${mode==='dec'}" ${dis}>Ułamek dziesiętny</button>
+    <button type="button" data-mode="frac" aria-pressed="${mode==='frac'}" ${dis}>Ułamek zwykły</button></div>`;
+  const field=mode==='frac'
+    ?`<div class="ans-frac">
+        <input id="aw" class="whole" inputmode="numeric" autocomplete="off" aria-label="Całości" ${dis}>
+        <div class="stack"><input id="an" inputmode="numeric" autocomplete="off" aria-label="Licznik" ${dis}><span class="bar"></span><input id="ad" inputmode="numeric" autocomplete="off" aria-label="Mianownik" ${dis}></div>
+      </div>
+      <p class="hintline">Duże pole po lewej to całości. Zostaw je puste, jeśli wynik jest mniejszy od 1. Gdy wynik to liczba całkowita, wpisz ją tylko w duże pole.</p>`
+    :`<input id="adec" class="dec" inputmode="decimal" autocomplete="off" aria-label="Wynik" placeholder="np. 2,75" ${dis}>
+      <p class="hintline">Możesz pisać z przecinkiem albo z kropką.</p>`;
+  return {mode,html:toggle+field};
+}
+function renderQuiz(){
+  const Z=S.quiz,q=Z.qs[Z.i],n=Z.qs.length;
+  const fb=Z.phase==='feedback';
+  const A=answerArea(q,Z,fb);
+  Z.curMode=A.mode;
+  app.innerHTML=`
+  <div class="topbar">
+    <button class="btn ghost" id="quit" type="button">← Zakończ</button>
+    <div class="stat"><span class="pill">Pytanie ${Z.i+1} / ${n}</span><span class="pill pts">${Z.points} pkt</span>${Z.streak>=2?`<span class="pill">🔥 ${Z.streak} z rzędu</span>`:''}</div>
+  </div>
+  <div class="progress" aria-hidden="true"><i style="width:${(Z.i+(fb?1:0))/n*100}%"></i></div>
+  <form class="panel" id="ansForm" novalidate>
+    <div class="qmeta"><span class="tag">${OPNAME[q.op]}</span><span class="tag">${CATNAME[q.cat]}</span>${Z.retry?'<span class="tag">Poprawka</span>':''}</div>
+    <div class="expr" aria-live="polite">${opH(q.a)}<span class="op">${OPSHOW[q.op]}</span>${opH(q.b)}<span class="op">=</span><span class="q">?</span></div>
+    <div class="ans" id="ans">${A.html}</div>
+    <p class="err" id="inErr" hidden></p>
+    <div id="hintBox"${Z.hintShown?'':' hidden'} class="fb info"><span class="title" style="font-size:1.1rem">Podpowiedź</span><div>${q.hint}</div></div>
+    <div id="fbBox"></div>
+    <div class="actions" id="acts">
+      ${fb?`<button class="btn primary big" id="next" type="button">${Z.i+1<n?'Dalej →':'Zobacz wynik'}</button>`
+          :`<button class="btn primary big" type="submit">Sprawdź</button>
+            <button class="btn" type="button" id="hint" ${Z.hintShown?'disabled':''}>Podpowiedź (−5 pkt)</button>`}
+    </div>
+  </form>`;
+  $('#quit').onclick=()=>{if(Z.results.length){finishQuiz()}else{S.screen='start';render()}};
+  app.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{Z.mode=b.dataset.mode;const A2=answerArea(q,Z,false);Z.curMode=A2.mode;$('#ans').innerHTML=A2.html;bindAns();focusFirst()});
+  $('#ansForm').addEventListener('submit',e=>{e.preventDefault();if(Z.phase==='answer')check()});
+  if(fb){showFeedback(Z.lastFb);const nb=$('#next');nb.onclick=next;nb.focus()}
+  else{$('#hint').onclick=()=>{Z.hintShown=true;$('#hintBox').hidden=false;$('#hint').disabled=true;focusFirst()};bindAns();focusFirst()}
+}
+function bindAns(){
+  const an=$('#an');if(an){an.addEventListener('keydown',e=>{if(e.key==='/'){e.preventDefault();$('#ad').focus()}})}
+}
+function focusFirst(){const el=$('#an')||$('#adec');if(el&&!matchMedia('(pointer:coarse)').matches)el.focus()}
+function inErr(msg){const e=$('#inErr');e.textContent=msg;e.hidden=false;const a=$('#ans');a.classList.remove('shake');void a.offsetWidth;a.classList.add('shake')}
+function readFrac(){
+  const w=$('#aw').value.trim(),n=$('#an').value.trim(),d=$('#ad').value.trim();
+  const isInt=s=>/^\d{1,7}$/.test(s);
+  if(!w&&!n&&!d)return {err:'Wpisz odpowiedź.'};
+  if(w&&!isInt(w))return {err:'W polu całości wpisz liczbę całkowitą.'};
+  const hasFrac=!!(n||d);
+  if(hasFrac){if(!isInt(n)||!isInt(d))return {err:'Uzupełnij licznik i mianownik.'};if(+d===0)return {err:'Mianownik nie może być zerem.'}}
+  const W=+(w||0),N=+(n||0),D=+(d||1);
+  const html=`${w?`<span class="num">${W}</span>`:''}${hasFrac?frH(N,D):''}`;
+  return {v:F(W*D+N,D),notReduced:hasFrac&&N>0&&gcd(N,D)>1,notExtracted:hasFrac&&N>=D&&N>0,html,red:F(W*D+N,D)};
+}
+function readDec(){
+  let s=$('#adec').value.trim().replace(/\s/g,'').replace('.',',');
+  if(!s)return {err:'Wpisz odpowiedź.'};
+  if(!/^(\d{1,8}(,\d{1,8})?|,\d{1,8})$/.test(s)){
+    if(s.includes('/'))return {err:'Tu wpisz ułamek dziesiętny, np. 0,75.'};
+    return {err:'Wpisz liczbę, np. 2,75.'}}
+  let [i,f='']=s.split(',');i=i||'0';
+  return {v:F(parseInt(i+f,10),10**f.length),html:`<span class="num">${esc(s)}</span>`};
+}
+const PRAISE=['Świetnie!','Brawo!','Dokładnie tak!','Super!','Ekstra, dobrze!','Tak jest!'];
+function correctHtml(q){
+  if(q.cat==='frac')return mixedH(q.r);
+  if(q.cat==='dec')return decH(q.r);
+  return q.r.d===1?decH(q.r):`${decH(q.r)} <span>=</span> ${mixedH(q.r)}`;
+}
+function check(){
+  const Z=S.quiz,q=Z.qs[Z.i];
+  const ans=Z.curMode==='frac'?readFrac():readDec();
+  if(ans.err)return inErr(ans.err);
+  $('#inErr').hidden=true;
+  const ok=fEq(ans.v,q.r);
+  if(ok&&Z.curMode==='frac'&&Z.level===3&&(ans.notReduced||ans.notExtracted)){
+    return inErr(`Wartość jest dobra, ale na poziomie trudnym trzeba jeszcze ${ans.notReduced&&ans.notExtracted?'skrócić wynik i wyłączyć całości':ans.notReduced?'skrócić wynik':'wyłączyć całości'}. Popraw i sprawdź jeszcze raz.`)}
+  let pts=0,note='';
+  if(ok){Z.streak++;Z.bestStreak=Math.max(Z.bestStreak,Z.streak);pts=(Z.hintShown?5:10)+(Z.streak>=3?2:0);Z.points+=pts;
+    if(Z.curMode==='frac'&&(ans.notReduced||ans.notExtracted))note=`Pamiętaj o ${ans.notReduced?'skracaniu':'wyłączaniu całości'}: ${ans.html} = ${mixedH(q.r)}`}
+  else Z.streak=0;
+  Z.results[Z.i]={ok,hint:Z.hintShown,given:ans.html};
+  const title=ok?(S.name&&Math.random()<.35?`Brawo, ${esc(S.name)}!`:pick(PRAISE)):'Nie tym razem.';
+  Z.lastFb={ok,title,pts,note};
+  Z.phase='feedback';
+  renderQuiz();
+}
+function showFeedback(f){
+  const Z=S.quiz,q=Z.qs[Z.i];
+  const steps=`<ol class="steps">${q.steps.map(s=>`<li>${s}</li>`).join('')}<li class="final">Wynik: ${correctHtml(q)}</li></ol>`;
+  $('#fbBox').innerHTML=`<div class="fb ${f.ok?'ok':'bad'}" role="status">
+    <span class="title">${f.title}${f.ok?` <span class="muted" style="font-size:1rem">+${f.pts} pkt${Z.streak>=3?' (z bonusem za serię)':''}</span>`:''}</span>
+    ${f.ok?(f.note?`<div>${f.note}</div>`:''):`<div class="answer-line">Twoja odpowiedź: <span class="your">${Z.results[Z.i].given}</span></div><div class="answer-line">Poprawny wynik: <span class="good">${correctHtml(q)}</span></div>`}
+    ${f.ok?`<details><summary>Pokaż rozwiązanie</summary>${steps}</details>`:`<div><b>Jak to policzyć:</b></div>${steps}`}
+  </div>`;
+}
+function next(){
+  const Z=S.quiz;
+  if(Z.i+1>=Z.qs.length)return finishQuiz();
+  Z.i++;Z.phase='answer';Z.hintShown=false;renderQuiz();
+}
+
+/* ---------- podsumowanie ---------- */
+function gradeOf(p){return p===100?[6,'celujący','Bezbłędnie! Jesteś mistrzynią ułamków.']:p>=90?[5,'bardzo dobry','Świetna robota!']:p>=75?[4,'dobry','Dobrze Ci idzie, jeszcze trochę ćwiczeń.']:p>=50?[3,'dostateczny','Nieźle. Przejrzyj pomyłki i spróbuj jeszcze raz.']:p>=30?[2,'dopuszczający','Warto powtórzyć zasady. Rozwiązania krok po kroku pomogą.']:[1,'niedostateczny','Spróbuj łatwiejszego poziomu i korzystaj z podpowiedzi.']}
+function finishQuiz(){
+  const Z=S.quiz,done=Z.results.length;
+  const okN=Z.results.filter(r=>r&&r.ok).length,pct=done?Math.round(okN/done*100):0;
+  const st=load();st.badges=st.badges||[];st.best=st.best||{};
+  const earned=[];
+  const give=id=>{if(!st.badges.includes(id)){st.badges.push(id);earned.push(id)}};
+  if(Z.bestStreak>=5)give('s5');
+  if(Z.bestStreak>=10)give('s10');
+  if(done>=10&&pct===100)give('perf');
+  if(done>=10&&pct>=80&&!Z.results.some(r=>r.hint))give('solo');
+  if(done>=10&&pct>=80&&Z.level===3)give('hard');
+  for(const op of ['+','-','·',':']){const rs=Z.qs.slice(0,done).map((q,i)=>[q,Z.results[i]]).filter(([q])=>q.op===op);
+    if(rs.length>=5&&rs.every(([,r])=>r.ok))give('m'+op)}
+  if(!Z.retry&&done===Z.qs.length&&(st.best[Z.level]==null||pct>st.best[Z.level]))st.best[Z.level]=pct;
+  save(st);
+  S.lastNew=earned;S.summary={pct,okN,done,badges:st.badges};
+  S.screen='summary';render();
+}
+function renderSummary(){
+  const Z=S.quiz,{pct,okN,done,badges}=S.summary,[g,gn,msg]=gradeOf(pct);
+  const qs=Z.qs.slice(0,done);
+  const groups=[];
+  for(const op of ['+','-','·',':']){const idx=qs.map((q,i)=>i).filter(i=>qs[i].op===op);if(idx.length)groups.push([OPNAME[op],idx])}
+  if(S.cfg.cats.length>1&&!Z.retry)for(const c of ['frac','dec','mix']){const idx=qs.map((q,i)=>i).filter(i=>qs[i].cat===c);if(idx.length)groups.push([CATNAME[c].replace('Ułamki ',''),idx])}
+  const bars=groups.map(([name,idx])=>{const k=idx.filter(i=>Z.results[i].ok).length,p=Math.round(k/idx.length*100);
+    const col=p>=75?'var(--ok)':p>=50?'var(--marker)':'var(--bad)';
+    return `<div class="barrow"><span>${name}${p<60?'<small>warto poćwiczyć</small>':''}</span><span class="track"><i style="width:${Math.max(p,3)}%;background:${col}"></i></span><span class="v">${k} / ${idx.length}</span></div>`}).join('');
+  const wrong=qs.map((q,i)=>[q,Z.results[i]]).filter(([,r])=>!r.ok);
+  const mistakes=wrong.map(([q,r])=>`<div class="mistake">
+      <div class="e">${opH(q.a)}<span style="color:var(--accent)">${OPSHOW[q.op]}</span>${opH(q.b)}<span>=</span><span class="good">${correctHtml(q)}</span></div>
+      <div class="cmp"><span>Twoja odpowiedź: <span class="your">${r.given}</span></span></div>
+      <details><summary>Rozwiązanie krok po kroku</summary><ol class="steps">${q.steps.map(s=>`<li>${s}</li>`).join('')}</ol></details>
+    </div>`).join('');
+  app.innerHTML=`
+  <section class="panel">
+    <h2>${S.name?`Wynik: ${esc(S.name)}`:'Twój wynik'}</h2>
+    <div class="score">
+      <span class="big">${pct}%</span>
+      <div class="grade"><span class="muted">Ocena</span><b>${g} (${gn})</b><span>${okN} z ${done} dobrze · ${Z.points} pkt · najdłuższa seria: ${Z.bestStreak}</span></div>
+    </div>
+    <p>${msg}</p>
+    <div class="row">
+      ${wrong.length?`<button class="btn primary" id="retry" type="button">Powtórz błędne (${wrong.length})</button>`:''}
+      <button class="btn ${wrong.length?'':'primary'}" id="again" type="button">Nowy quiz</button>
+      <button class="btn ghost" id="settings" type="button">Zmień ustawienia</button>
+    </div>
+  </section>
+  ${bars?`<section class="panel"><h3>Jak poszło w poszczególnych działaniach</h3><div class="bars">${bars}</div></section>`:''}
+  ${S.lastNew.length?`<section class="panel"><h3>Nowe odznaki!</h3>${badgeGrid(badges,S.lastNew,S.lastNew)}</section>`:''}
+  ${wrong.length?`<section class="panel"><h3>Pomyłki do przejrzenia</h3><div class="mistakes">${mistakes}</div></section>`:''}
+  `;
+  const r=$('#retry');if(r)r.onclick=()=>startQuiz(shuffle(wrong.map(([q])=>q)),true);
+  $('#again').onclick=()=>startQuiz(buildQuiz(S.cfg));
+  $('#settings').onclick=()=>{S.screen='start';render()};
+}
+
+function render(){
+  if(S.screen==='quiz')renderQuiz();else if(S.screen==='summary')renderSummary();else renderStart();
+  window.scrollTo(0,0);
+}
+render();
+</script>
+<script src="../../wspolne/pwa.js" defer></script>
+</body>
+</html>
